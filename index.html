@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Investment Calculator with Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 30px auto; padding: 20px; background: #f9f9f9; }
+    h1 { text-align: center; color: #2E86C1; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+    button { margin-top: 20px; padding: 10px 15px; width: 100%; background-color: #28a745; color: white; border: none; font-size: 16px; cursor: pointer; }
+    button:hover { background-color: #218838; }
+    .top-container { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 30px; }
+    .inputs { flex: 1 1 300px; }
+    .results { flex: 1 1 300px; background: #fff; padding: 15px; border-radius: 5px; box-shadow: 0 0 5px #ccc; }
+    canvas { width: 100% !important; max-height: 400px; }
+    @media(max-width: 700px) { .top-container { flex-direction: column; } }
+  </style>
+</head>
+<body>
+
+<h1>Investment Calculator</h1>
+
+<div class="top-container">
+  <div class="inputs">
+    <label>Invested Amount (₹):</label>
+    <input type="number" id="invested" value="1000">
+
+    <label>Investment Type:</label>
+    <select id="mode">
+      <option value="lump">Entire Tenure (Lump-sum)</option>
+      <option value="annual">Per Year (Annual SIP)</option>
+      <option value="monthly">Per Month (Monthly SIP)</option>
+    </select>
+
+    <label>Annual Return (%):</label>
+    <input type="number" id="return" value="10">
+
+    <label>Inflation (%):</label>
+    <input type="number" id="inflation" value="5">
+
+    <label>Years:</label>
+    <input type="number" id="years" value="10">
+
+    <button onclick="calculate()">Calculate</button>
+  </div>
+
+  <div class="results" id="results">
+    <h3>Results</h3>
+    <p>Enter values and click Calculate</p>
+  </div>
+</div>
+
+<!-- Chart below both -->
+<canvas id="chart"></canvas>
+
+<script>
+let myChart = null;
+
+function calculate() {
+  let invested = parseFloat(document.getElementById("invested").value);
+  let mode = document.getElementById("mode").value;
+  let rate = parseFloat(document.getElementById("return").value)/100;
+  let inflation = parseFloat(document.getElementById("inflation").value)/100;
+  let years = parseInt(document.getElementById("years").value);
+
+  let nominalData = [];
+  let realData = [];
+  let labels = [];
+
+  for(let y=1; y<=years; y++){
+    labels.push("Year " + y);
+
+    // Nominal
+    let nominal = 0;
+    if(mode === "lump") nominal = invested * Math.exp(y * Math.log(1 + rate));
+    else if(mode === "annual") {
+      for(let t=1; t<=y; t++) nominal += invested * Math.exp((y - t + 1) * Math.log(1 + rate));
+    } else if(mode === "monthly") {
+      let months = y*12;
+      let monthlyRate = Math.pow(1+rate,1/12)-1;
+      nominal = 0;
+      for(let m=1; m<=months; m++) nominal += invested * Math.pow(1 + monthlyRate, months - m + 1);
+    }
+    nominalData.push(nominal);
+
+    // Real
+    let realRate = (1 + rate)/(1 + inflation) - 1;
+    let real = 0;
+    if(mode === "lump") real = invested * Math.exp(y * Math.log(1 + realRate));
+    else if(mode === "annual") {
+      for(let t=1; t<=y; t++) real += invested * Math.exp((y - t + 1) * Math.log(1 + realRate));
+    } else if(mode === "monthly") {
+      let months = y*12;
+      let monthlyRealRate = Math.pow(1 + realRate, 1/12) - 1;
+      real = 0;
+      for(let m=1; m<=months; m++) real += invested * Math.pow(1 + monthlyRealRate, months - m + 1);
+    }
+    realData.push(real);
+  }
+
+  let totalInvested = (mode==="monthly" ? invested*years*12 : mode==="annual" ? invested*years : invested);
+  let totalGain = nominalData[nominalData.length-1] - totalInvested;
+  let realGain = realData[realData.length-1] - totalInvested;
+  let totalReturn = (totalGain/totalInvested)*100;
+  let realReturn = (realGain/totalInvested)*100;
+
+  document.getElementById("results").innerHTML = `
+    <h3>Results</h3>
+    <b>Nominal (without inflation)</b><br>
+    Final Value: ₹${nominalData[nominalData.length-1].toFixed(2)}<br>
+    Total Gain: ₹${totalGain.toFixed(2)}<br>
+    Total Return: ${totalReturn.toFixed(2)}%<br><br>
+
+    <b>Real (after inflation)</b><br>
+    Purchasing-Power Value: ₹${realData[realData.length-1].toFixed(2)}<br>
+    Real Gain: ₹${realGain.toFixed(2)}<br>
+    Real Return: ${realReturn.toFixed(2)}%
+  `;
+
+  // Chart below both
+  if(myChart) myChart.destroy();
+  let ctx = document.getElementById('chart').getContext('2d');
+  myChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Nominal Value', data: nominalData, borderColor: 'green', fill: false, tension: 0.3 },
+        { label: 'Real Value', data: realData, borderColor: 'red', fill: false, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
